@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ReadMe — Text & PDF Reader (Neural Voices)</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121832; --muted:#8ea0ff; --text:#e7e9ff;
+      --accent:#6d8eff; --accent-2:#a5b6ff; --danger:#ff6d8e;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(160deg,#0b1020,#111834 60%,#0b1020);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    .wrap{max-width:1100px;margin:24px auto;padding:16px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .logo{font-weight:800;letter-spacing:.3px;font-size:22px}
+    .card{background:rgba(18,24,50,.8);backdrop-filter: blur(6px);border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
+    @media (max-width: 980px){.grid{grid-template-columns:1fr}}
+    .toolbar{display:flex;flex-wrap:wrap;gap:10px;padding:12px;border-bottom:1px solid rgba(255,255,255,.06)}
+    .toolbar .group{display:flex;gap:10px;align-items:center}
+    label{opacity:.8;font-size:13px}
+    select,input[type="range"],button,input[type="password"],input[type="text"]{background:#111736;color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px}
+    input[type="range"]{padding:0;height:34px}
+    button{cursor:pointer;transition:.15s transform ease, .15s background ease}
+    button:hover{transform:translateY(-1px)}
+    button.primary{background:linear-gradient(180deg,var(--accent),#4c6bff);border:none}
+    button.secondary{background:#18204a}
+    button.danger{background:#3b1122;border-color:#ff8aa8;color:#ffd9e2}
+    .surface{padding:12px}
+    .drop{border:1.5px dashed rgba(255,255,255,.18);border-radius:16px;padding:18px;text-align:center;color:var(--accent-2);cursor:pointer}
+    .drop:hover{background:rgba(255,255,255,.03)}
+    #text{width:100%;min-height:420px;max-height:60vh;resize:vertical;background:transparent;border:0;color:var(--text);font-size:16px;line-height:1.6;padding:16px;border-radius:12px}
+    #text:focus{outline:2px solid rgba(109,142,255,.35)}
+    .status{display:flex;align-items:center;gap:10px;opacity:.8;font-size:14px;padding:8px 12px}
+    .right > .surface{padding:0}
+    .panel{padding:16px;border-top:1px solid rgba(255,255,255,.06)}
+    .small{font-size:12px;opacity:.75}
+    .row{display:flex;gap:8px;align-items:center}
+    .row > *{flex:1}
+    .hidden{display:none}
+    .footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px}
+    .kbd{padding:2px 6px;border:1px solid rgba(255,255,255,.2);border-radius:6px;font-size:12px}
+    .pill{padding:4px 10px;border-radius:999px;background:#10173b;border:1px solid rgba(255,255,255,.08);font-size:12px;color:#b7c3ff}
+    .hint{opacity:.7}
+  </style>
+  <!-- PDF.js CDN -->
+  <script src="https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.js";
+    }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">📖 ReadMe <span class="pill">Neural Voice + PDF/Text</span></div>
+      <div class="small">Tip: Drop a .pdf or .txt • <span class="kbd">Space</span> play/pause • <span class="kbd">Esc</span> stop</div>
+    </header>
+
+    <div class="grid">
+      <section class="left card">
+        <div class="toolbar">
+          <div class="group">
+            <label for="engine">Engine</label>
+            <select id="engine">
+              <option value="browser">Browser Voice</option>
+              <option value="openai">AI Human Voice (OpenAI)</option>
+            </select>
+          </div>
+          <div class="group" id="groupBrowserVoice">
+            <label for="voice">Voice</label>
+            <select id="voice"></select>
+          </div>
+          <div class="group hidden" id="groupAiVoice">
+            <label for="aiVoice">AI Voice</label>
+            <select id="aiVoice">
+              <option>alloy</option>
+              <option>aria</option>
+              <option>verse</option>
+              <option>sage</option>
+              <option>nova</option>
+              <option>andrew</option> <!-- Andrew added -->
+            </select>
+          </div>
+          <div class="group">
+            <label for="rate">Rate</label>
+            <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1" />
+          </div>
+          <div class="group">
+            <label for="pitch">Pitch</label>
+            <input id="pitch" type="range" min="0" max="2" step="0.1" value="1" />
+          </div>
+          <div class="group">
+            <label for="volume">Volume</label>
+            <input id="volume" type="range" min="0" max="1" step="0.05" value="1" />
+          </div>
+        </div>
+        <div class="surface">
+          <div id="drop" class="drop">
+            <input id="file" type="file" accept=".pdf,.txt" class="hidden" />
+            <p><strong>Click to choose</strong> or drag & drop a <u>PDF</u> or <u>TXT</u> file here</p>
+            <p class="small">You can also paste text directly into the editor below.</p>
+          </div>
+          <textarea id="text" placeholder="Your text will appear here… Paste or type to start. "></textarea>
+          <div class="status">
+            <span id="statusDot">●</span>
+            <span id="statusMsg">Idle</span>
+            <span style="margin-left:auto" id="charCount">0 characters</span>
+          </div>
+        </div>
+        <div class="footer">
+          <div class="row" style="gap:10px;flex: 1 1 auto;">
+            <button id="btnReadSelection" class="secondary">Read Selection</button>
+            <button id="btnPlay" class="primary">▶ Play</button>
+            <button id="btnPause" class="secondary">⏸ Pause</button>
+            <button id="btnResume" class="secondary">⏵ Resume</button>
+            <button id="btnStop" class="danger">⏹ Stop</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right card">
+        <div class="surface">
+          <h3 style="margin:6px 0 10px">Reader Settings</h3>
+          <div class="panel">
+            <div class="row">
+              <label>Sentence Highlighting</label>
+              <button id="toggleHL" class="secondary" aria-pressed="true">On</button>
+            </div>
+          </div>
+          <div class="panel" id="apiPanel">
+            <div class="row" style="align-items:stretch">
+              <div style="flex:2">
+                <label for="apiKey">OpenAI API Key</label>
+                <input id="apiKey" type="password" placeholder="sk-..." />
+                <div class="small hint">Stored only in this browser (localStorage) if you click Save.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+                <button id="btnSaveKey" class="secondary">Save</button>
+                <button id="btnClearKey" class="danger">Forget</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel small">
+            <p><strong>How it works</strong></p>
+            <ul>
+              <li><b>Browser Voice</b> uses your device's built‑in voices.</li>
+              <li><b>AI Human Voice</b> calls OpenAI TTS to generate natural audio locally in your browser.</li>
+              <li>PDF text is extracted with PDF.js (works best on selectable PDFs; scanned PDFs need OCR first).</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <p class="small" style="opacity:.7;margin-top:14px">No text or files are uploaded anywhere unless you use AI Voice (then your text is sent to OpenAI to synthesize audio). Keys are kept in your browser if you save them.</p>
+  </div>
+
+<script>
+(function(){
+  const textEl = document.getElementById('text');
+  const engineEl = document.getElementById('engine');
+  const voiceSel = document.getElementById('voice');
+  const aiVoiceSel = document.getElementById('aiVoice');
+  const rateEl = document.getElementById('rate');
+  const pitchEl = document.getElementById('pitch');
+  const volumeEl = document.getElementById('volume');
+  const statusMsg = document.getElementById('statusMsg');
+  const statusDot = document.getElementById('statusDot');
+  const charCount = document.getElementById('charCount');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnPause = document.getElementById('btnPause');
+  const btnResume = document.getElementById('btnResume');
+  const btnStop = document.getElementById('btnStop');
+  const btnReadSelection = document.getElementById('btnReadSelection');
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('file');
+  const toggleHL = document.getElementById('toggleHL');
+  const apiKeyInput = document.getElementById('apiKey');
+  const btnSaveKey = document.getElementById('btnSaveKey');
+  const btnClearKey = document.getElementById('btnClearKey');
+  const groupBrowserVoice = document.getElementById('groupBrowserVoice');
+  const groupAiVoice = document.getElementById('groupAiVoice');
+
+  let voices = [];
+  let queue = [];
+  let speaking = false;
+  let paused = false;
+  let highlightOn = true;
+  let currentSentenceIndex = -1;
+  let audio = null;
+  let stopRequested = false;
+  let currentAbort = null;
+
+  try{ const saved = localStorage.getItem('openai_api_key'); if (saved) apiKeyInput.value = saved; }catch(_){ }
+
+  function setStatus(text, state='idle'){
+    statusMsg.textContent = text;
+    const color = {idle:'#9fb0ff', reading:'#6d8eff', paused:'#ffaa6d', stopped:'#ff8aa8'}[state] || '#9fb0ff';
+    statusDot.style.color = color;
+  }
+
+  function updateCount(){ charCount.textContent = `${textEl.value.length} characters`; }
+
+  function loadVoices(){
+    voices = window.speechSynthesis.getVoices();
+    voiceSel.innerHTML='';
+    voices.forEach((v,i)=>{
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${v.name} (${v.lang})${v.default? ' — default':''}`;
+      voiceSel.appendChild(opt);
+    });
+  }
+  loadVoices();
+  if (typeof speechSynthesis !== 'undefined'){ speechSynthesis.onvoiceschanged = loadVoices; }
+
+  engineEl.addEventListener('change', ()=>{
+    const ai = engineEl.value === 'openai';
+    groupBrowserVoice.classList.toggle('hidden', ai);
+    groupAiVoice.classList.toggle('hidden', !ai);
+    document.getElementById('apiPanel').style.display = ai ? 'block' : 'none';
+  });
+  engineEl.dispatchEvent(new Event('change'));
+
+  btnSaveKey.addEventListener('click', ()=>{
+    try{ localStorage.setItem('openai_api_key', apiKeyInput.value.trim()); setStatus('API key saved','idle'); }catch(e){ setStatus('Could not save key','stopped'); }
+  });
+  btnClearKey.addEventListener('click', ()=>{
+    try{ localStorage.removeItem('openai_api_key'); apiKeyInput.value=''; setStatus('API key cleared','idle'); }catch(e){ setStatus('Could not clear key','stopped'); }
+  });
+
+  function splitIntoSentences(text){
+    const parts = text.replace(/\s+/g,' ').match(/[^.!?\n]+[.!?]?/g);
+    return parts ? parts.map(s=>s.trim()).filter(Boolean) : [];
+  }
+
+  function clearHighlights(){ textEl.value = textEl.value; }
+
+  function highlightSentence(index){
+    if (!highlightOn) return;
+    const sentences = splitIntoSentences(textEl.value);
+    if (index < 0 || index >= sentences.length) return;
+    const before = sentences.slice(0,index).join(' ');
+    const target = sentences[index];
+    const start = before.length ? before.length + 1 : 0;
+    const end = start + target.length;
+    textEl.focus();
+    try{ textEl.setSelectionRange(start, end); }catch(_){ }
+  }
+
+  function applyUtterSettings(utter){
+    const v = voices[voiceSel.value|0];
+    if (v) utter.voice = v;
+    utter.rate = parseFloat(rateEl.value);
+    utter.pitch = parseFloat(pitchEl.value);
+    utter.volume = parseFloat(volumeEl.value);
+  }
+
+  function speakBrowser(sentences){
+    queue = sentences; currentSentenceIndex = -1; speaking = true; paused = false; stopRequested=false; setStatus('Reading…','reading');
+    nextSentenceBrowser();
+  }
+  function nextSentenceBrowser(){
+    if (!speaking || stopRequested) return;
+    currentSentenceIndex++;
+    if (currentSentenceIndex >= queue.length){ speaking=false; setStatus('Done','idle'); clearHighlights(); return; }
+    const sentence = queue[currentSentenceIndex];
+    highlightSentence(currentSentenceIndex);
+    const u = new SpeechSynthesisUtterance(sentence);
+    applyUtterSettings(u);
+    u.onend = () => { if (!paused) nextSentenceBrowser(); };
+    u.onerror = (e)=>{ console.error('Speech error', e); setStatus('Error — skipping','stopped'); nextSentenceBrowser(); };
+    speechSynthesis.speak(u);
+  }
+
+  function chunkForTTS(sentences){
+    const maxChars = 400;
+    const chunks = [];
+    let buf = '';
+    for (const s of sentences){
+      if ((buf + ' ' + s).trim().length > maxChars){ if (buf) chunks.push(buf.trim()); buf = s; }
+      else { buf = (buf ? buf + ' ' : '') + s; }
+    }
+    if (buf) chunks.push(buf.trim());
+    return chunks;
+  }
+
+  async function openaiSpeak(text){
+    const key = apiKeyInput.value.trim();
+    if (!key){ setStatus('Enter your OpenAI API key','stopped'); return; }
+    const sentences = splitIntoSentences(text);
+    const chunks = chunkForTTS(sentences);
+    queue = chunks; currentSentenceIndex = -1; speaking = true; paused=false; stopRequested=false; setStatus('Generating…','reading');
+    await nextChunkAI();
+  }
+
+  async function nextChunkAI(){
+    if (!speaking || stopRequested) return;
+    currentSentenceIndex++;
+    if (currentSentenceIndex >= queue.length){ speaking=false; setStatus('Done','idle'); clearHighlights(); return; }
+    const chunk = queue[currentSentenceIndex];
+    const allSent = splitIntoSentences(textEl.value);
+    const consumed = queue.slice(0,currentSentenceIndex).join(' ');
+    const consumedCount = consumed ? consumed.split(/(?<=[.!?])\s+/).length : 0;
+    highlightSentence(consumedCount);
+
+    try{
+      if (currentAbort) currentAbort.abort();
+      currentAbort = new AbortController();
+      const resp = await fetch('https://api.openai.com/v1/audio/speech',{
+        method:'POST',
+        headers:{
+          'Authorization': 'Bearer ' + apiKeyInput.value.trim(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: aiVoiceSel.value, input: chunk }),
+        signal: currentAbort.signal
+      });
+      if (!resp.ok){
+        const errText = await resp.text();
+        throw new Error('OpenAI error: ' + errText);
+      }
+      const arrayBuffer = await resp.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      audio = new Audio(URL.createObjectURL(blob));
+      audio.onended = nextChunkAI;
+      audio.play();
+    }catch(e){
+      if (e.name === 'AbortError'){ return; }
+      console.error(e); setStatus('Error during AI TTS','stopped'); nextChunkAI();
+    }
+  }
+
+  function stopAll(){
+    stopRequested=true; speaking=false; paused=false; clearHighlights();
+    speechSynthesis.cancel();
+    if(audio){ audio.pause(); audio=null; }
+    setStatus('Stopped','stopped');
+  }
+
+  btnPlay.addEventListener('click', ()=>{
+    const engine = engineEl.value;
+    const sentences = splitIntoSentences(textEl.value);
+    if (!sentences.length) return;
+    if (engine === 'browser') speakBrowser(sentences);
+    else openaiSpeak(textEl.value);
+  });
+  btnPause.addEventListener('click', ()=>{
+    if (engineEl.value==='browser'){ speechSynthesis.pause(); paused=true; setStatus('Paused','paused'); }
+    else if(audio){ audio.pause(); paused=true; setStatus('Paused','paused'); }
+  });
+  btnResume.addEventListener('click', ()=>{
+    if (engineEl.value==='browser'){ speechSynthesis.resume(); paused=false; setStatus('Reading…','reading'); }
+    else if(audio){ audio.play(); paused=false; setStatus('Reading…','reading'); }
+  });
+  btnStop.addEventListener('click', stopAll);
+  btnReadSelection.addEventListener('click', ()=>{
+    const sel = textEl.value.substring(textEl.selectionStart,textEl.selectionEnd).trim();
+    if (!sel) return alert('Select text first');
+    if(engineEl.value==='browser') speakBrowser([sel]); else openaiSpeak(sel);
+  });
+
+  drop.addEventListener('click', ()=>fileInput.click());
+  drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('hover'); });
+  drop.addEventListener('dragleave', e=>{ drop.classList.remove('hover'); });
+  drop.addEventListener('drop', e=>{
+    e.preventDefault(); drop.classList.remove('hover');
+    if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', ()=>{ if(fileInput.files.length) handleFile(fileInput.files[0]); });
+
+  async function handleFile(file){
+    const name = file.name.toLowerCase();
+    if(name.endsWith('.txt')){
+      const text = await file.text();
+      textEl.value=text; updateCount();
+    }else if(name.endsWith('.pdf')){
+      const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+      let fullText='';
+      for(let i=1;i<=pdf.numPages;i++){ const page = await pdf.getPage(i); const txt = await page.getTextContent(); const pageText = txt.items.map(t=>t.str).join(' '); fullText += pageText + '\n\n'; }
+      textEl.value = fullText; updateCount();
+    }else alert('Unsupported file');
+  }
+
+  textEl.addEventListener('input', updateCount);
+  updateCount();
+
+  toggleHL.addEventListener('click', ()=>{
+    highlightOn=!highlightOn; toggleHL.textContent=highlightOn?'On':'Off';
+  });
+
+  document.addEventListener('keydown', e=>{
+    if(e.code==='Space'){ e.preventDefault(); if(paused){ btnResume.click(); }else{ btnPause.click(); } }
+    else if(e.code==='Escape'){ btnStop.click(); }
+  });
+
+  aiVoiceSel.value='andrew'; // default to Andrew voice
+
+})();
+</script>
+</body>
+</html>
